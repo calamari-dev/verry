@@ -1,6 +1,6 @@
 import enum
 from abc import ABC, abstractmethod
-from typing import Final, Literal, Self
+from typing import TYPE_CHECKING, Final, Literal, Self, TypeIs, assert_type
 
 from verry import function as vrf
 from verry.misc.formatspec import FormatSpec
@@ -159,7 +159,7 @@ class Operator[T: SignedComparable](ABC):
         raise NotImplementedError
 
 
-class Interval[T: SignedComparable](Scalar, ABC):
+class Interval[T: SignedComparable](Scalar[T | float], ABC):
     """Abstract base class for inf-sup type intervals.
 
     Parameters
@@ -243,7 +243,11 @@ class Interval[T: SignedComparable](Scalar, ABC):
             raise ValueError
 
     @classmethod
-    def ensure(cls, value: Self | T | float | int | str) -> Self:
+    def ensurable(cls, value: object) -> TypeIs[Self | T | float | int]:
+        return isinstance(value, (cls, cls.endtype, float, int))
+
+    @classmethod
+    def ensure(cls, value: Self | SignedComparable | float | int) -> Self:
         """Convert `value` to an interval and return its copy."""
         return value.copy() if isinstance(value, cls) else cls(value)  # type: ignore
 

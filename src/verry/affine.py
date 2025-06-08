@@ -104,9 +104,7 @@ def setcontext(ctx: Context) -> None:
 def localcontext(
     ctx: Context | None = None, *, rounding: Literal["FAST", "BRUTE"] | None = None
 ):
-    """Return a context manager that will set the current context for the active thread
-    to a copy of `ctx` on entry to the with-statement and restore the previous context
-    when exiting the with-statement."""
+    """Return a context manager."""
     if ctx is None:
         ctx = getcontext()
 
@@ -122,7 +120,7 @@ def localcontext(
         _var.reset(token)
 
 
-class AffineForm[T1: Interval, T2: ComparableScalar = Any](Scalar):
+class AffineForm[T1: Interval, T2: ComparableScalar = Any](Scalar[T1 | T2 | float]):
     """Affine form.
 
     Parameters

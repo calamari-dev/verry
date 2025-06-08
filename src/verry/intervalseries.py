@@ -112,9 +112,7 @@ def localcontext(
     deg: int | None = None,
     domain: Interval | None = None,
 ):
-    """Return a context manager that will set the current context for the active thread
-    to a copy of `ctx` on entry to the with-statement and restore the previous context
-    when exiting the with-statement."""
+    """Return a context manager."""
     if ctx is None:
         ctx = getcontext()
 
@@ -136,7 +134,7 @@ def localcontext(
         _var.reset(token)
 
 
-class IntervalSeries[T1: Interval, T2: SignedComparable = Any](Scalar):
+class IntervalSeries[T1: Interval, T2: SignedComparable = Any](Scalar[T1 | T2 | float]):
     """Interval series.
 
     Parameters

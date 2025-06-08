@@ -20,10 +20,10 @@ This module provides type definitions commonly used between modules.
 """
 
 from abc import abstractmethod
-from typing import Protocol, Self, SupportsAbs
+from typing import Never, Protocol, Self, SupportsAbs
 
 
-class Scalar(Protocol):
+class Scalar[T = Never](Protocol):
     """Protocol that ensures scalar-like behavior.
 
     Objects implementing this protocol must have four arithmetic operations and
@@ -34,31 +34,31 @@ class Scalar(Protocol):
     __slots__ = ()
 
     @abstractmethod
-    def __add__(self, rhs: Self | int) -> Self: ...
+    def __add__(self, rhs: Self | int | T) -> Self: ...
 
     @abstractmethod
-    def __sub__(self, rhs: Self | int) -> Self: ...
+    def __sub__(self, rhs: Self | int | T) -> Self: ...
 
     @abstractmethod
-    def __mul__(self, rhs: Self | int) -> Self: ...
+    def __mul__(self, rhs: Self | int | T) -> Self: ...
 
     @abstractmethod
-    def __truediv__(self, rhs: Self | int) -> Self: ...
+    def __truediv__(self, rhs: Self | int | T) -> Self: ...
+
+    @abstractmethod
+    def __radd__(self, lhs: Self | int | T) -> Self: ...
+
+    @abstractmethod
+    def __rsub__(self, lhs: Self | int | T) -> Self: ...
+
+    @abstractmethod
+    def __rmul__(self, lhs: Self | int | T) -> Self: ...
+
+    @abstractmethod
+    def __rtruediv__(self, lhs: Self | int | T) -> Self: ...
 
     @abstractmethod
     def __pow__(self, rhs: int) -> Self: ...
-
-    @abstractmethod
-    def __radd__(self, lhs: Self | int) -> Self: ...
-
-    @abstractmethod
-    def __rsub__(self, lhs: Self | int) -> Self: ...
-
-    @abstractmethod
-    def __rmul__(self, lhs: Self | int) -> Self: ...
-
-    @abstractmethod
-    def __rtruediv__(self, lhs: Self | int) -> Self: ...
 
     @abstractmethod
     def __neg__(self) -> Self: ...
