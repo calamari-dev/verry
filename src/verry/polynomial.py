@@ -195,7 +195,7 @@ class IntervalPolynomial[T1: Interval, T2: SignedComparable = Any]:
 
                 bcoeffs = tmp
 
-        return self._intvl(min(bcoeffs.values()), max(bcoeffs.values()))
+        return self._intvl.hull(*bcoeffs.values())
 
     def reduce(self, index: int) -> Self:
         if self._nvar == 1:
