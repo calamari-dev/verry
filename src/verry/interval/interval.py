@@ -243,10 +243,6 @@ class Interval[T: SignedComparable](Scalar[T | float], ABC):
             raise ValueError
 
     @classmethod
-    def ensurable(cls, value: object) -> TypeIs[Self | T | float | int]:
-        return isinstance(value, (cls, cls.endtype, float, int))
-
-    @classmethod
     def ensure(cls, value: Self | SignedComparable | float | int) -> Self:
         """Convert `value` to an interval and return its copy."""
         return value.copy() if isinstance(value, cls) else cls(value)  # type: ignore

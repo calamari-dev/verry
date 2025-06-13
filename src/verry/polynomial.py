@@ -1,10 +1,27 @@
+import itertools
+import math
 from collections import defaultdict
-from collections.abc import Mapping
-from types import MappingProxyType
-from typing import Any, Self
+from collections.abc import Iterator, Mapping, Sequence
+from typing import Any, Self, overload
 
 from verry.interval.interval import Interval
 from verry.typing import SignedComparable
+
+
+def _combination(a: Sequence[int], b: Sequence[int]) -> int:
+    result = 1
+
+    for x, y in zip(a, b, strict=True):
+        if not x >= y >= 0:
+            raise ValueError
+
+        result *= math.factorial(x) // math.factorial(x - y)
+
+    return result
+
+
+def _prodrange(stop: Sequence[int]) -> Iterator[tuple[int, ...]]:
+    return itertools.product(*(range(n) for n in stop))
 
 
 class IntervalPolynomial[T1: Interval, T2: SignedComparable = Any]:
@@ -19,7 +36,7 @@ class IntervalPolynomial[T1: Interval, T2: SignedComparable = Any]:
         if not isinstance(intvl, Interval):
             raise TypeError
 
-        if len(coeffs) == 0:
+        if next(iter(coeffs), None) is None:
             raise ValueError("coeffs must be non-empty")
 
         self._dict = defaultdict(intvl)
@@ -39,35 +56,76 @@ class IntervalPolynomial[T1: Interval, T2: SignedComparable = Any]:
                 self._dict[key] = value
 
     @property
-    def data(self) -> Mapping[tuple[int, ...], T1]:
-        return MappingProxyType(self._dict)
+    def interval(self) -> type[T1]:
+        return self._intvl
+
+    @property
+    def ndeg(self) -> tuple[int, ...]:
+        return tuple(max(x[i] for x in self._dict) for i in range(self._nvar))
 
     @property
     def nvar(self) -> int:
         return self._nvar
-
-    @property
-    def interval(self) -> type[T1]:
-        return self._intvl
 
     @classmethod
     def const(cls, nvar: int, value: T1) -> Self:
         if not isinstance(value, Interval):
             raise TypeError
 
+        if nvar <= 0:
+            raise ValueError
+
         return cls({(0,) * nvar: value}, type(value))
 
+    @classmethod
+    def variables(cls, nvar: int, intvl: type[T1]) -> tuple[T1, ...]:
+        if not issubclass(intvl, Interval):
+            raise TypeError
+
+        if nvar <= 0:
+            raise ValueError
+
+        result: list[T1] = []
+
+        for i in range(nvar):
+            key = tuple(1 if x == i else 0 for x in range(nvar))
+            result.append(cls({key: intvl.operator.ONE}, intvl))
+
+        return tuple(result)
+
     def assign(self, index: int, arg: T1 | T2 | float | int) -> Self:
+        if not 0 <= index < self._nvar:
+            raise ValueError
+
         deg = max((x[index] for x in self._dict.keys()), default=0)
         coeffs = [self.const(self._nvar, self._intvl()) for _ in range(deg + 1)]
 
         for key, value in self._dict.items():
-            tmp = tuple(0 if i == index else x for i, x in enumerate(key))
+            tmp = tuple(key[i] if i != index else 0 for i in range(self._nvar))
             coeffs[key[index]][tmp] = value
 
         result = coeffs[-1]
 
-        for x in coeffs[:-1]:
+        for x in reversed(coeffs[:-1]):
+            result *= arg
+            result += x
+
+        return result
+
+    def compose(self, index: int, arg: Self) -> Self:
+        if not 0 <= index < self._nvar:
+            raise ValueError
+
+        deg = max((x[index] for x in self._dict.keys()), default=0)
+        coeffs = [self.const(self._nvar, self._intvl()) for _ in range(deg + 1)]
+
+        for key, value in self._dict.items():
+            tmp = tuple(key[i] if i != index else 0 for i in range(self._nvar))
+            coeffs[key[index]][tmp] = value
+
+        result = coeffs[-1]
+
+        for x in reversed(coeffs[:-1]):
             result *= arg
             result += x
 
@@ -75,7 +133,8 @@ class IntervalPolynomial[T1: Interval, T2: SignedComparable = Any]:
 
     def copy(self) -> Self:
         if not self._dict:
-            return self.__class__({(0,) * self._nvar: 0}, self._intvl)
+            key = (0,) * self._nvar
+            return self.__class__({key: self._intvl.operator.ZERO}, self._intvl)
 
         return self.__class__(self._dict, self._intvl)
 
@@ -86,7 +145,7 @@ class IntervalPolynomial[T1: Interval, T2: SignedComparable = Any]:
         if len(args) != self._nvar:
             raise ValueError
 
-        if not all(self._intvl.ensurable(x) for x in args):
+        if not isinstance(args[-1], (self._intvl, self._intvl.endtype, float, int)):
             raise TypeError
 
         if not self._dict:
@@ -99,15 +158,44 @@ class IntervalPolynomial[T1: Interval, T2: SignedComparable = Any]:
         coeffs = [self.const(self._nvar - 1, self._intvl()) for _ in range(deg + 1)]
 
         for key, value in self._dict.items():
-            coeffs[key[-1]][key[:-1]] = value
+            coeffs[key[-1]]._dict[key[:-1]] = value
 
         result = coeffs[-1].copy()
 
-        for x in coeffs[:-1]:
+        for x in reversed(coeffs[:-1]):
             result *= args[-1]
             result += x
 
         return result.eval(*args[:-1])
+
+    def range(self, *args: T1) -> T1:
+        var = self.variables(self._nvar, self._intvl)
+        normalized = self.copy()
+
+        for i, arg in enumerate(args):
+            tmp = (var[i] - arg.inf) / (self._intvl(arg.sup) - arg.inf)
+            normalized = normalized.compose(i, tmp)
+
+        bcoeffs: dict[tuple[int, ...], T1] = {}
+        ndeg = self.ndeg
+
+        for i in _prodrange(ndeg):
+            bcoeffs[i] = normalized[i] / _combination(ndeg, i)
+
+        for r in range(self._nvar):
+            for k in range(1, ndeg[r] + 1):
+                tmp: dict[tuple[int, ...], T1] = {}
+
+                for i in _prodrange(ndeg):
+                    if i[r] < k:
+                        tmp[i] = bcoeffs[i]
+                    else:
+                        j = tuple(x - 1 if x == r else x for x in range(self._nvar))
+                        tmp[i] = bcoeffs[i] + bcoeffs[j]
+
+                bcoeffs = tmp
+
+        return self._intvl(min(bcoeffs.values()), max(bcoeffs.values()))
 
     def reduce(self, index: int) -> Self:
         if self._nvar == 1:
@@ -118,25 +206,9 @@ class IntervalPolynomial[T1: Interval, T2: SignedComparable = Any]:
 
         result = self.const(self._nvar - 1, self._intvl())
 
-        for key, value in self._dict.items():
-            if key[index] == 0:
-                tmp = tuple(x for i, x in enumerate(key) if i != index)
-                result[tmp] = value
-
-        return result
-
-    def scale(self, *args: T1 | T2 | int | float) -> Self:
-        if len(args) != self._nvar:
-            raise ValueError
-
-        if not all(self._intvl.ensurable(x) for x in args):
-            raise TypeError
-
-        result = self.copy()
-
-        for key in self._dict:
-            for i, x in zip(key, args):
-                result[key] *= x**i
+        for key, value in filter(lambda x, _: x[index] == 0, self._dict.items()):
+            tmp = tuple(key[i] for i in range(self._nvar) if i != index)
+            result._dict[tmp] = value
 
         return result
 
@@ -225,7 +297,7 @@ class IntervalPolynomial[T1: Interval, T2: SignedComparable = Any]:
         return NotImplemented
 
     def __truediv__(self, rhs: T1 | T2 | float | int) -> Self:
-        if not isinstance(rhs, (self.interval, self.interval.endtype, float, int)):
+        if not isinstance(rhs, (self._intvl, self._intvl.endtype, float, int)):
             return NotImplemented
 
         result = self.copy()
@@ -239,7 +311,8 @@ class IntervalPolynomial[T1: Interval, T2: SignedComparable = Any]:
         if not (isinstance(rhs, int) and rhs >= 0):
             return NotImplemented
 
-        result = self.const(self._nvar, self._intvl(1))
+        ONE = self._intvl.operator.ONE
+        result = self.const(self._nvar, self._intvl(ONE))
         tmp = self.copy()
 
         while rhs != 0:
