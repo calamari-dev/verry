@@ -10,6 +10,7 @@ from verry.integrate.utility import seriessolution, variationaleq
 from verry.interval.interval import Interval
 from verry.intervalseries import IntervalSeries
 from verry.linalg.intervalmatrix import IntervalMatrix, resolve_intervalmatrix
+from verry.typing import SignedComparable
 
 
 class AbortSolving(Exception):
@@ -108,7 +109,7 @@ class C0SolverResultContent[T: Interval]:
 
 
 @dataclasses.dataclass(frozen=True, slots=True)
-class C0SolverCallbackArg[T: Interval]:
+class C0SolverCallbackArg[T: SignedComparable]:
     """Argument of callback functions passed to :meth:`C0Solver.solve`.
 
     Attributes
@@ -123,9 +124,9 @@ class C0SolverCallbackArg[T: Interval]:
         Current interval series.
     """
 
-    t: T
-    y: tuple[T, ...]
-    t_prev: T
+    t: Interval[T]
+    y: tuple[Interval[T], ...]
+    t_prev: Interval[T]
     series: tuple[IntervalSeries[T], ...]
 
 

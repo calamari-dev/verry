@@ -52,7 +52,7 @@ def allroot[T: IntervalMatrix](
     fprime: Callable | None = None,
     unique: bool = False,
     max_iter: int = 16,
-) -> AllRootScalarResult[T]:
+) -> AllRootResult[T]:
     """Find all roots of multivariate scalar-valued function.
 
     Parameters
@@ -110,7 +110,7 @@ def allroot[T: IntervalMatrix](
         raise ValueError
 
     cands = [domain]
-    result: AllRootResult[T] = AllRootResult()
+    result = AllRootResult[T]()
 
     for i in range(max_iter):
         if not cands:
@@ -207,7 +207,7 @@ def allroot_scalar[T: Interval](
         raise ValueError
 
     cands = [domain]
-    result = AllRootScalarResult()
+    result = AllRootScalarResult[T]()
 
     for i in range(max_iter):
         if not cands:
